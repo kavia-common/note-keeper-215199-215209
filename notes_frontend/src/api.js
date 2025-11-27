@@ -1,10 +1,40 @@
-const DEFAULT_BASE = 'http://localhost:3001';
+const DEFAULT_LOCAL_BASE = 'http://localhost:3001';
 
 // PUBLIC_INTERFACE
 export function getApiBase() {
-  /** Returns the API base URL from env (REACT_APP_API_BASE) or default. */
-  const base = process.env.REACT_APP_API_BASE || DEFAULT_BASE;
-  return base.replace(/\/+$/, '');
+  /** Returns the API base URL from env (REACT_APP_API_BASE) or sensible defaults.
+   * Priority:
+   * 1) REACT_APP_API_BASE if set
+   * 2) If running in browser:
+   *    - If current port is 3000, infer backend at same host:3001 with same protocol (avoid mixed content)
+   *    - Otherwise, try same-origin (assumes reverse proxy)
+   * 3) Fallback to localhost:3001
+   */
+  const envBase = process.env.REACT_APP_API_BASE;
+  if (envBase && typeof envBase === 'string') {
+    return envBase.replace(/\/*$/, '');
+  }
+
+  if (typeof window !== 'undefined' && window.location && window.location.href) {
+    try {
+      const url = new URL(window.location.href);
+      const proto = url.protocol; // 'http:' or 'https:'
+      const host = url.hostname;
+      const port = url.port;
+
+      // If the frontend runs on port 3000 (dev/preview), backend is typically on 3001 same host
+      if (port === '3000') {
+        return `${proto}//${host}:3001`;
+      }
+
+      // Otherwise, try same origin (useful when reverse proxy serves the API)
+      return window.location.origin.replace(/\/*$/, '');
+    } catch {
+      // ignore parsing errors
+    }
+  }
+
+  return DEFAULT_LOCAL_BASE.replace(/\/*$/, '');
 }
 
 /**
